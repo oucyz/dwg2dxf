@@ -1,0 +1,51 @@
+name: format lint and test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint_and_test:
+    name: format_lint_and_test
+    defaults:
+      run:
+        working-directory: .
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: SSH Setting
+        env:
+          REPO_SSH_PRIVATE_KEY: ${{ secrets.REPO_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p /home/runner/.ssh/
+          echo -e ${REPO_SSH_PRIVATE_KEY} | base64 -d > /home/runner/.ssh/id_rsa
+          chmod 600 /home/runner/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+      # - run: pip install --upgrade pip
+      - run: curl -sSL https://install.python-poetry.org | python3.9 -
+      - run: poetry install --no-root
+
+      # fmt
+      - name: black & isort
+        run: |
+          make -j fmt
+      - name: apply black & isort
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: apply black & isort
+
+      # lint
+      - name: flake8 & mypy
+        run: |
+          make -j lint
+
+      # test
+      - name: pytest
+        run: |
+          make -j pytest
